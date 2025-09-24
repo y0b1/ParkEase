@@ -1,0 +1,5 @@
+train: C:\Users\Yobi\Downloads\Car Park\images\train
+val: C:\Users\Yobi\Downloads\Car Park\images\val
+
+nc: 1
+names: ["Occupied"]

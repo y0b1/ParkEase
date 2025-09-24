@@ -6,7 +6,7 @@ import os
 # --- CONFIG ---
 ROI_FILE = "parking_rois.json"   # saved from your ROI selector
 CAMERA_INDEX = 2            # 0 = default webcam, or use video path instead
-THRESHOLD = 30                   # sensitivity (lower = stricter)
+THRESHOLD = 25                   # sensitivity (lower = stricter)
 
 # --- LOAD ROIS ---
 if not os.path.exists(ROI_FILE):
@@ -65,22 +65,22 @@ while True:
         cv2.fillPoly(overlay, [pts], color)
         cv2.polylines(frame, [pts], True, color, 2)
 
-        # Label
+
         cx, cy = int(np.mean(pts[:, 0])), int(np.mean(pts[:, 1]))
         label = f"{'OCC' if occupied else 'FREE'} ({int(score)})"
         cv2.putText(frame, label, (cx-20, cy),
                     cv2.FONT_HERSHEY_COMPLEX, 0.5, (255, 255, 255), 2)
 
-    # Blend overlay with transparency
+
     alpha = 0.3
     frame = cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0)
 
     cv2.imshow("Parking Availability", frame)
     key = cv2.waitKey(30)
 
-    if key in (ord('q'), 27):  # quit on Q or ESC
+    if key in (ord('q'), 27):
         break
-    elif key == ord('r'):  # reset reference frame
+    elif key == ord('r'):
         ref_gray = frame_gray.copy()
         print("Reference frame reset!")
 
