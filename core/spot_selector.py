@@ -3,7 +3,7 @@ import pickle
 import numpy as np
 
 # --- Configuration ---
-VIDEO_SOURCE = 2  # Use 0 for webcam, or provide a path to a video file.
+VIDEO_SOURCE = 3  # Use 0 for webcam, or provide a path to a video file.
 SPOTS_FILE = 'parking_spots.pkl'
 FRAME_WIDTH = 1280  # 720p width
 FRAME_HEIGHT = 720  # 720p height

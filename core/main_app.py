@@ -5,12 +5,13 @@ from ultralytics import YOLO
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk
+import time
 
 # --- Configuration ---
 VIDEO_SOURCE = 3  # OBS virtual cam or webcam
 SPOTS_FILE = 'core/parking_spots.pkl'
 YOLO_MODEL = 'yolov8n.pt'
-CONFIDENCE_THRESHOLD = 0.05
+CONFIDENCE_THRESHOLD = .01
 # ---------------------
 
 # --- Status Constants ---
@@ -39,6 +40,7 @@ except Exception as e:
 try:
     with open(SPOTS_FILE, 'rb') as f:
         parking_spots = pickle.load(f)
+        spot_detection_start = [None] * len(parking_spots)  # track when detection starts
 except FileNotFoundError:
     print(f"'{SPOTS_FILE}' not found. Run spot_selector.py first.")
     exit()
@@ -157,24 +159,25 @@ class ParkingApp:
                         det_poly.astype(np.float32),
                         spot_poly.astype(np.float32)
                     )
-                    if overlap[0] > 500:  # threshold area
+                    if overlap[0] > 500:  # overlap threshold
                         still_occupied = True
                         break
                 except cv2.error:
                     continue
 
+        # --- Determine outcome ---
         if still_occupied:
             messagebox.showwarning("Spot Still Occupied",
-                                   f"Cannot leave yet — vehicle still detected in Spot #{idx+1}.")
+                           f"Cannot leave yet — vehicle still detected in Spot #{idx+1}.")
         else:
             if spot_statuses[idx] in (STATUS_OCCUPIED, STATUS_RESERVED):
                 spot_statuses[idx] = STATUS_VACANT
-                messagebox.showinfo("Checkout", f"Spot #{idx+1} is now Vacant.")
-                self.status_label.config(text=f"Spot #{idx+1} marked Vacant.")
+                messagebox.showinfo("Thank You", "Thank you!")
             else:
-                messagebox.showwarning("Already Vacant", f"Spot #{idx+1} is already vacant.")
-
+            # It was already vacant (no reservation, no car)
+                messagebox.showinfo("Thank You", "Thank you!")
         self.card_entry.delete(0, tk.END)
+
 
 
     def update_frame(self):
@@ -184,7 +187,6 @@ class ParkingApp:
             self.on_closing()
             return
 
-        # Run YOLO
         results = model(frame, conf=CONFIDENCE_THRESHOLD, verbose=False)[0]
         detections = []
 
@@ -192,6 +194,9 @@ class ParkingApp:
         for i, status in enumerate(spot_statuses):
             if status == STATUS_OCCUPIED:
                 spot_statuses[i] = STATUS_VACANT
+
+        current_time = time.time()
+        detected_spots = set()  # to track which spots have detections this frame
 
         for box in results.boxes:
             cls_id = int(box.cls[0])
@@ -213,21 +218,45 @@ class ParkingApp:
                             det_poly.astype(np.float32),
                             spot_poly.astype(np.float32)
                         )
-                        if overlap[0] > 500:
-                            if spot_statuses[i] != STATUS_RESERVED:
+
+                        if overlap[0] > 500:  # overlap area threshold
+                            detected_spots.add(i)
+
+                            # If the spot is reserved, check time-based transition
+                            if spot_statuses[i] == STATUS_RESERVED:
+                                if spot_detection_start[i] is None:
+                                    spot_detection_start[i] = current_time  # start timer
+                                elif current_time - spot_detection_start[i] >= 3:
+                                    # Vehicle present for >= 3 seconds — mark occupied
+                                    spot_statuses[i] = STATUS_OCCUPIED
+                                    spot_detection_start[i] = None  # reset timer
+                            else:
+                                spot_detection_start[i] = None  # not reserved
+
+                            # For vacant spots — instantly mark occupied
+                            if spot_statuses[i] == STATUS_VACANT:
                                 spot_statuses[i] = STATUS_OCCUPIED
                             break
+
                     except cv2.error:
                         continue
 
+        # Reset timers for spots not currently detected
+        for i in range(len(parking_spots)):
+            if i not in detected_spots:
+                spot_detection_start[i] = None
+
+        # Draw overlays
         frame = self.draw_overlays(frame.copy(), detections)
 
+        # Convert to Tkinter image
         img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         img_tk = ImageTk.PhotoImage(Image.fromarray(img))
         self.monitor_label.imgtk = img_tk
         self.monitor_label.configure(image=img_tk)
 
         self.root.after(200, self.update_frame)
+
 
     def draw_overlays(self, frame, detections):
         for det in detections:
