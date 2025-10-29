@@ -238,7 +238,6 @@ class SpotSelectorApp:
 if __name__ == "__main__":
     root = tk.Tk()
 
-    # Set the theme
     sv_ttk.set_theme("light")
 
     app = SpotSelectorApp(root)
